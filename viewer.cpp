@@ -2,89 +2,83 @@
 #include "../build/ui_viewer.h"
 #include <iostream>
 
-#include <boost/thread/thread.hpp>
-#include <pcl/common/common_headers.h>
-#include <pcl/common/distances.h>
-
-#include <pcl/features/normal_3d.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/visualization/pcl_visualizer.h>
-#include <pcl/console/parse.h>
-#include <pcl/search/kdtree.h>
-
 Viewer::Viewer(QWidget *parent) :  QWidget(parent),ui(new Ui::Viewer),
   filtering_axis_ (1), //y
-  color_mode_ (4), //rainbow
+  color_mode_ (1), //rainbow
   text_id (1),
   line_id (1)
 {
-
-
     ui->setupUi(this);
 
-    viewer_.reset (new pcl::visualization::PCLVisualizer ("viewer", false));
-    ui->qvtkWidget->SetRenderWindow (viewer_->getRenderWindow ());
 
-    viewer_->setupInteractor (ui->qvtkWidget->GetInteractor (), ui->qvtkWidget->GetRenderWindow ());
-    viewer_->registerMouseCallback (&Viewer::mouseEventOccurred, *this, (void*)&viewer_);
 
-    //ui->comboBox(ui->qvtkWidget);
+    /**********************
+     *
+     *  Create a plane VTK
+     *  Tampoco soy capaz de moverlo con VTK: Hay que crear un interactorstyle
+     *  customizado juntando haciendo que el interactor style de pcl
+     *  extienda de vtkInteractorStyleTrackballActor pero que añada la función de
+     * vtkInteractorStyleRubberBandPick.
+     * */
+    vtkSmartPointer<interactor_style_actor> style =
+        vtkSmartPointer<interactor_style_actor>::New();
 
-    ui->groupBox->setParent(ui->qvtkWidget);
-
-    ui->listWidget->setParent(ui->qvtkWidget);
-    ui->verticalSlider->setParent(ui->qvtkWidget);
-    viewer_->registerPointPickingCallback(&Viewer::pickEventLine, *this, (void*)&viewer_);
-    viewer_->registerAreaPickingCallback(&Viewer::area_picking_callback, *this, (void*)&viewer_);
-
-    viewer_->registerKeyboardCallback (&Viewer::keyBoardEventOccurred,*this, (void*)&viewer_);
-
+   /*Creamos una nueva de puntos la rellenamos de puntos y la pintamos*/
     cloud_.reset(new PointCloudT);
     fillCloud();
     colorCloudDistances ();
+
+    /*Creamos un visualizador pcl le añadimos los ojes de coordenadas y la nube de puntos*/
+    viewer_.reset (new pcl::visualization::PCLVisualizer ("viewer", false));
     viewer_->addCoordinateSystem (1.0);
     viewer_->addPointCloud (cloud_, "cloud");
-   addPlane(); //NO SE PORQUE NO PINTA EL PLANO
 
+    /*Registramos los eventos en el visualizador para raton teclado seleccion y punteo*/
+    viewer_->registerMouseCallback (&Viewer::mouseEventOccurred, *this, (void*)&viewer_);
+    viewer_->registerPointPickingCallback(&Viewer::pickEventLine, *this, (void*)&viewer_);
+    viewer_->registerKeyboardCallback (&Viewer::keyBoardEventOccurred,*this, (void*)&viewer_);
+    viewer_->registerAreaPickingCallback(&Viewer::area_picking_callback, *this, (void*)&viewer_);
 
-    //**SIGNALS Y SLOTS DEL FORMULARIO*/
+    /*Añadimos el visualizador al QVTKWidget de nuestra interfaz para poder verlo y manejarlo*/
+    ui->qvtkWidget->SetRenderWindow (viewer_->getRenderWindow ());
+    viewer_->setupInteractor (ui->qvtkWidget->GetInteractor (), ui->qvtkWidget->GetRenderWindow (), style);
+
+    /*Conectamos al interfaz con sus métodos: SIGNALS Y SLOTS DEL FORMULARIO*/
     connect (ui->free, SIGNAL(clicked ()), this, SLOT(addSquare()));
     connect (ui->line, SIGNAL(clicked ()), this, SLOT(addLine()));
-    connect (ui->circle, SIGNAL(clicked ()), this, SLOT(addSphere()));
+    connect (ui->circle, SIGNAL(clicked ()), this, SLOT(addPlane()));
     connect (ui->load, SIGNAL(clicked ()), this, SLOT(loadFileButtonPressed ()));
     connect (ui->save, SIGNAL(clicked ()), this, SLOT(saveFileButtonPressed ()));
     connect (ui->back, SIGNAL(clicked ()), this, SLOT(shootScreen()));
     connect (ui->rubber, SIGNAL(clicked()), this, SLOT(deleteDistances()));
-connect(ui->fullScreen, SIGNAL(clicked()), this, SLOT(showFullScreen()));
-connect(ui->verticalSlider, SIGNAL(valueChanged(int)), this, SLOT(fVoxelGrid(int)));
+    connect(ui->fullScreen, SIGNAL(clicked()), this, SLOT(showFullScreen()));
+    connect(ui->verticalSlider, SIGNAL(valueChanged(int)), this, SLOT(fVoxelGrid(int)));
 
 
 
 }
 
-void Viewer::saveScreenshot(){
-    //Viewer* v;
-    QString format = "png";
-
-       QString initialPath = QDir::currentPath() + tr("/untitled.") + format;
-
-//QString fileName = QFileDialog::getSaveFileName(this, tr ("Save As"),
-             //                                   "/home/",
-               //                                 tr ("(*.png)"));
-
-QString fileName = QFileDialog::getSaveFileName(this, tr("Save As"),
-                           initialPath,
-                           tr("%1 Files (*.%2);;All Files (*)")
-                           .arg(QString(format.toUpper()))
-                           .arg(QString(format)));
-
-       if (!fileName.isEmpty())
-           originalPixmap.save(fileName, format.toAscii());
-
-
-}
+/*Eventos de teclado*/
 void Viewer::keyBoardEventOccurred (const pcl::visualization::KeyboardEvent &event,void* viewer_void){
 
+/*NO FUNCIONA EL FULLSCREEN SE CUELGA*/
+
+//    std::cout<<"Ha pulsado la letra: "<<event.getKeySym()<<endl;
+
+//  if(event.getKeySym()=="Escape" && event.keyDown ()){
+//      std::cout<<"presione esc";
+
+//          viewer_->setFullScreen(false);
+//          //this->setWindowState(Qt::WindowMaximized);
+//      }
+//  if(event.getKeySym()=="m" && event.keyDown ()){
+//      std::cout<<"presione esc";
+
+//          viewer_->setFullScreen(true);
+//        //  this->setWindowState(Qt::WindowMaximized);
+//      }
+
+/**************************PRESS R************************/
   if (event.getKeySym () == "r" && event.keyDown ())
   {
     std::cout << "r was pressed => removing all text" << std::endl;
@@ -97,6 +91,7 @@ void Viewer::keyBoardEventOccurred (const pcl::visualization::KeyboardEvent &eve
     }
     text_id = 0;
   }
+/*************************PRESS S*************************/
   if (event.getKeySym () == "s" && event.keyDown ())
   {
     std::cout << "s was pressed => removing all lines" << std::endl;
@@ -110,6 +105,7 @@ void Viewer::keyBoardEventOccurred (const pcl::visualization::KeyboardEvent &eve
     line_id = 0;
   }
 }
+/*Eventos de ratón*/
 void Viewer::mouseEventOccurred (const pcl::visualization::MouseEvent &event, void* viewer_void){
      if(number_points!=0){
        if (event.getButton () == pcl::visualization::MouseEvent::LeftButton &&
@@ -123,6 +119,7 @@ void Viewer::mouseEventOccurred (const pcl::visualization::MouseEvent &event, vo
        }
         }
  }
+/*Eventos pick*/
 void Viewer::pickEventLine (const pcl::visualization::PointPickingEvent& event, void* viewer_void){
 
  int idx = event.getPointIndex ();
@@ -148,9 +145,6 @@ void Viewer::pickEventLine (const pcl::visualization::PointPickingEvent& event, 
         /*Point Marker*/
         sprintf(marker, "sphere#%03d", marker_id++);
         viewer_->addSphere (picked_point, 0.01, 1.0, 0.0, 0.0, marker);
-//      sprintf (str, "text#%03d", text_id++);
-//      sprintf (buffer, "(%lf,%lf,%lf)", picked_point.x , picked_point.y, picked_point.z);
-//      viewer_->addText3D (buffer, picked_point, 0.1, 1.0, 0.0, 0.0,str);
         if(number_points==2){
             /*Line*/
             sprintf(line,"line#%03d",line_id++ );
@@ -169,33 +163,23 @@ void Viewer::pickEventLine (const pcl::visualization::PointPickingEvent& event, 
  }
 
 
-/******************NO NOS VALE PARA ARCHIVOS GRANDES COMO LOS NUESTROS_**********************/
-struct callback_args{
-   // structure used to pass arguments to the callback function
-   PointCloudT::Ptr clicked_points_3d;
+/**** NO FUNCIONA BIEN**/
 
- };
 void Viewer::area_picking_callback (const pcl::visualization::AreaPickingEvent& event, void* viewer_void){
-      std::vector<int> indices;
-      struct callback_args* data = (struct callback_args *)viewer_void;
+std::vector<int> indices;
+    PointCloudT::Ptr cloud_pick;
        PointT current_point;
-        pcl::visualization::PointCloudColorHandlerCustom<PointT> red (data->clicked_points_3d, 255, 0, 0);
+       cloud_pick.reset(new PointCloudT);
+        pcl::visualization::PointCloudColorHandlerCustom<PointT> red (cloud_pick, 255, 0, 0);
       if (event.getPointsIndices(indices))
       {
-
           for(int i=0; i<indices.size();i++){
-               current_point=cloud_->points[indices[i]];
-
-
-              std::cout<<"indices"<<endl;
-              data->clicked_points_3d->points.push_back(current_point);
-              std::cout<<"data"<<endl;
-
+            current_point=cloud_->points[indices[i]];
+            cloud_pick->points.push_back(current_point);
           }
-          viewer_->removePointCloud("clicked_points");
-          std::cout<<"remove"<<endl;
-          viewer_->addPointCloud(data->clicked_points_3d, red, "clicked_points");
-          viewer_->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 10, "clicked_points");
+          viewer_->removePointCloud("cloud_pick");
+          viewer_->addPointCloud(cloud_pick, red, "cloud_pick");
+          viewer_->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 10, "cloud_pick");
         std::cout << "picked " << indices.size () <<std::endl;
          ui->qvtkWidget->update ();
       }
@@ -335,90 +319,40 @@ void Viewer::colorCloudDistances ()
   }
 }
 void Viewer::addPlane(){
-     std::cout << "  a" << std::endl;
-    pcl::ModelCoefficients plane_coeff;
-    Eigen::Vector4f plane_parameters;
-    plane_coeff.values.resize (4);    // We need 4 values
-    plane_coeff.values[0] = plane_parameters.x ();
-    plane_coeff.values[1] = plane_parameters.y ();
-    plane_coeff.values[2] = plane_parameters.z ();
-    plane_coeff.values[3] = plane_parameters.w ();
 
-    viewer_->addPlane(plane_coeff);
+    pcl::ModelCoefficients::Ptr plane_1 (new pcl::ModelCoefficients);
+    plane_1->values.resize (4);
+    plane_1->values[0] = 0;
+    plane_1->values[1] = 0;
+    plane_1->values[2] = 1;
+    plane_1->values[3] = 0;
+    viewer_->addPlane (*plane_1, "plane_1", 0);
+    viewer_->setShapeRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.9, 0.1, 0.1 /*R,G,B*/, "plane_1", 0);
+    viewer_->setShapeRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY, 0.6, "plane_1", 0);
+    viewer_->setShapeRenderingProperties (pcl::visualization::PCL_VISUALIZER_REPRESENTATION, pcl::visualization::PCL_VISUALIZER_REPRESENTATION_WIREFRAME, "plane_1", 0);
+
      ui->qvtkWidget->update ();
 }
 
 
 /*************************SLOTS***********************/
+
+/*MENU INFERIOR*/
 void Viewer::shootScreen(){
       originalPixmap = QPixmap::grabWindow(QApplication::desktop()->winId());
       saveScreenshot();
 }
 void Viewer::showFullScreen(){
-    if(this->isFullScreen())this->setWindowState(Qt::WindowMaximized);
-    else
-this->setWindowState(Qt::WindowFullScreen);
-}
-void Viewer::deleteDistances(){
-    /*delete lines*/
-    char line[512];
-    for (unsigned int i = 0; i < line_id; ++i)
-    {
-      sprintf (line, "line#%03d", i);
-      viewer_->removeShape (line);
+    if(this->isFullScreen()) {
+        //viewer_->setFullScreen(false);
+        this->setWindowState(Qt::WindowMaximized);
     }
-    line_id = 0;
-    /*delete markers*/
-    char marker[512];
-    for (unsigned int i = 0; i < marker_id; ++i)
-    {
-      sprintf (marker, "sphere#%03d", i);
-      viewer_->removeShape (marker);
+    else{
+        this->setWindowState(Qt::WindowFullScreen);
+        //viewer_->setFullScreen 	( 	true	);
     }
-    marker_id = 0;
-    /*delete distances*/
-   ui->listWidget->clear();
-    marker_id = 0;
-    /*delete free forms*/
-
-    /*delete areas*/
-
-    /*delete angles*/
-
-
-    /*clean*/
- ui->qvtkWidget->update ();
-
-
 
 }
-void Viewer::addSquare(){
-
-    PointT p1, p2, p3, p4;
-  p1.x=0.0; p1.y=0.0; p1.z=0.0;
-          p2.x=0.0; p2.y=4.0; p2.z=0.0;
-            p3.x=4.0; p3.y=4.0; p3.z=0.0;
-              p4.x=4.0; p4.y=0.0; p4.z=0.0;
-     viewer_->addLine(p1,p2,"lin2");
-     viewer_->addLine(p2,p3,"lin3");
-viewer_->addLine(p3,p4,"lin4");
-viewer_->addLine(p4,p1,"lin5");
- ui->qvtkWidget->update ();
-}
-void Viewer::addSphere(){
-    pcl::ModelCoefficients circle_coeff;
-    circle_coeff.values.resize (3);    // We need 3 values
-    circle_coeff.values[0] = 1.0;
-    circle_coeff.values[1] = 1.0;
-    circle_coeff.values[2] = 10;
-
-    viewer_->addCircle (circle_coeff,  "sphere");
-     ui->qvtkWidget->update ();
-}
-void Viewer::addLine(){
- std::cout<<"addLine"<<std::endl;
-number_points=0;
- }
 void Viewer::loadFileButtonPressed (){
   // You might want to change "/home/" if you're not on an *nix platform
   QString filename = QFileDialog::getOpenFileName (this, tr ("Open point cloud"), "/home/", tr ("Point cloud data (*.pcd *.ply)"));
@@ -527,6 +461,92 @@ void Viewer::saveFileButtonPressed (){
     return;
   }
 }
+void Viewer::saveScreenshot(){
+    //Viewer* v;
+    QString format = "png";
+
+       QString initialPath = QDir::currentPath() + tr("/untitled.") + format;
+
+//QString fileName = QFileDialog::getSaveFileName(this, tr ("Save As"),
+             //                                   "/home/",
+               //                                 tr ("(*.png)"));
+
+QString fileName = QFileDialog::getSaveFileName(this, tr("Save As"),
+                           initialPath,
+                           tr("%1 Files (*.%2);;All Files (*)")
+                           .arg(QString(format.toUpper()))
+                           .arg(QString(format)));
+
+       if (!fileName.isEmpty())
+           originalPixmap.save(fileName, format.toLatin1());
+
+
+}
+
+/*TOOLBAR*/
+void Viewer::deleteDistances(){
+    /*delete lines*/
+    char line[512];
+    for (unsigned int i = 0; i < line_id; ++i)
+    {
+      sprintf (line, "line#%03d", i);
+      viewer_->removeShape (line);
+    }
+    line_id = 0;
+    /*delete markers*/
+    char marker[512];
+    for (unsigned int i = 0; i < marker_id; ++i)
+    {
+      sprintf (marker, "sphere#%03d", i);
+      viewer_->removeShape (marker);
+    }
+    marker_id = 0;
+    /*delete distances*/
+   ui->listWidget->clear();
+    marker_id = 0;
+    /*delete free forms*/
+
+    /*delete areas*/
+
+    /*delete angles*/
+
+
+    /*clean*/
+ ui->qvtkWidget->update ();
+
+
+
+}
+void Viewer::addSquare(){
+
+    PointT p1, p2, p3, p4;
+  p1.x=0.0; p1.y=0.0; p1.z=0.0;
+          p2.x=0.0; p2.y=4.0; p2.z=0.0;
+            p3.x=4.0; p3.y=4.0; p3.z=0.0;
+              p4.x=4.0; p4.y=0.0; p4.z=0.0;
+     viewer_->addLine(p1,p2,"lin2");
+     viewer_->addLine(p2,p3,"lin3");
+viewer_->addLine(p3,p4,"lin4");
+viewer_->addLine(p4,p1,"lin5");
+ ui->qvtkWidget->update ();
+}
+void Viewer::addSphere(){
+    pcl::ModelCoefficients circle_coeff;
+    circle_coeff.values.resize (3);    // We need 3 values
+    circle_coeff.values[0] = 1.0;
+    circle_coeff.values[1] = 1.0;
+    circle_coeff.values[2] = 10;
+
+    viewer_->addCircle (circle_coeff,  "sphere");
+     ui->qvtkWidget->update ();
+}
+void Viewer::addLine(){
+ std::cout<<"addLine"<<std::endl;
+number_points=0;
+ }
+
+
+/*FILTRADO PCL*/
 void Viewer::fVoxelGrid(int value){
 PointCloudT::Ptr cloud_filtered (new PointCloudT);
 PointCloudT::Ptr cloud_aux (new PointCloudT);

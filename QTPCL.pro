@@ -4,19 +4,21 @@
 #
 #-------------------------------------------------
 
-QT       += core gui widgets qml
+QT       += core gui widgets
 
 TARGET = QTPCL
 TEMPLATE = app
 CONFIG += c++11
 
 SOURCES += main.cpp\
-viewer.cpp
+viewer.cpp \
+    interactor_style_actor.cpp
 
 
 
 HEADERS  += \
-    viewer.h
+    viewer.h \
+    interactor_style_actor.h
 
 
 FORMS    += \
