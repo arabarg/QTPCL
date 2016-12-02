@@ -20,8 +20,7 @@ Viewer::Viewer(QWidget *parent) :  QWidget(parent),ui(new Ui::Viewer),
      *  extienda de vtkInteractorStyleTrackballActor pero que añada la función de
      * vtkInteractorStyleRubberBandPick.
      * */
-    vtkSmartPointer<interactor_style_actor> style =
-        vtkSmartPointer<interactor_style_actor>::New();
+
 
    /*Creamos una nueva de puntos la rellenamos de puntos y la pintamos*/
     cloud_.reset(new PointCloudT);
@@ -41,7 +40,7 @@ Viewer::Viewer(QWidget *parent) :  QWidget(parent),ui(new Ui::Viewer),
 
     /*Añadimos el visualizador al QVTKWidget de nuestra interfaz para poder verlo y manejarlo*/
     ui->qvtkWidget->SetRenderWindow (viewer_->getRenderWindow ());
-    viewer_->setupInteractor (ui->qvtkWidget->GetInteractor (), ui->qvtkWidget->GetRenderWindow (), style);
+
 
     /*Conectamos al interfaz con sus métodos: SIGNALS Y SLOTS DEL FORMULARIO*/
     connect (ui->free, SIGNAL(clicked ()), this, SLOT(addSquare()));
@@ -53,10 +52,43 @@ Viewer::Viewer(QWidget *parent) :  QWidget(parent),ui(new Ui::Viewer),
     connect (ui->rubber, SIGNAL(clicked()), this, SLOT(deleteDistances()));
     connect(ui->fullScreen, SIGNAL(clicked()), this, SLOT(showFullScreen()));
     connect(ui->verticalSlider, SIGNAL(valueChanged(int)), this, SLOT(fVoxelGrid(int)));
+    connect(ui->radioButton, SIGNAL(toggled(bool)), this, SLOT (loadInteractorCamera(bool)));
+    connect(ui->radioButton_2, SIGNAL(toggled(bool)), this, SLOT (loadInteractorActor(bool)));
+
+    interactorInit();
+
+}
+
+void Viewer::interactorInit(){
+
+    if(!ui->radioButton->isChecked())ui->radioButton->toggle();
+    if(ui->radioButton_2->isChecked())ui->radioButton->toggle();
+
+}
+void Viewer::loadInteractorCamera(bool checked) {
+
+    if((checked)&&(ui->radioButton_2->isChecked()))ui->radioButton_2->toggle();
+
+    viewer_->setupInteractor (ui->qvtkWidget->GetInteractor (), ui->qvtkWidget->GetRenderWindow ());
 
 
 
 }
+
+void Viewer::loadInteractorActor(bool checked) {
+
+    if((checked)&&(ui->radioButton->isChecked()))ui->radioButton->toggle();
+    vtkSmartPointer<interactor_style_actor> style =
+        vtkSmartPointer<interactor_style_actor>::New();
+   viewer_->setupInteractor (ui->qvtkWidget->GetInteractor (), ui->qvtkWidget->GetRenderWindow (), style);
+
+
+
+
+}
+
+
+
 
 /*Eventos de teclado*/
 void Viewer::keyBoardEventOccurred (const pcl::visualization::KeyboardEvent &event,void* viewer_void){

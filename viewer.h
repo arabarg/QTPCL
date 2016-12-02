@@ -82,6 +82,7 @@ protected:
     void pickEventLine (const pcl::visualization::PointPickingEvent &event, void* viewer_void);
     void area_picking_callback (const pcl::visualization::AreaPickingEvent &event, void*);
 
+    void interactorInit();
 public slots:
     void shootScreen();
     void saveFileButtonPressed ();
@@ -93,6 +94,8 @@ public slots:
     void deleteDistances();
     void showFullScreen();
     void fVoxelGrid(int value);
+    void loadInteractorCamera(bool checked);
+    void loadInteractorActor(bool checked);
 
 
 
